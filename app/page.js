@@ -40,10 +40,23 @@ export default function Home() {
   const [isProducer, setIsProducer] = useState(false);
 
   useEffect(() => {
-    socket.on("connection-success", ({ socketId }) => {
-      console.log(`socket id: ${socketId} connected...`);
+    socket.on("connection-success", ({ socketId, existsProducer }) => {
+      console.log(`socket id: ${socketId} connected... ${existsProducer}`);
     });
   }, []);
+
+  const goConsume = () => {
+    goConnect(false);
+  };
+
+  const goConnect = (producerOrConsumer) => {
+    setIsProducer(producerOrConsumer);
+    !device ? getRtpCapabilities() : goCreateTransport();
+  };
+
+  const goCreateTransport = () => {
+    isProducer ? createSendTransport() : createRecvTransport();
+  };
 
   const getLocalStream = async () => {
     try {
@@ -53,6 +66,7 @@ export default function Home() {
           localStream.current.srcObject = stream;
           const track = stream.getVideoTracks()[0];
           setParams((prev) => ({ ...prev, track }));
+          goConnect(true);
         });
     } catch (error) {
       console.log(`Error accessing media devices: ${error}`);
@@ -73,6 +87,8 @@ export default function Home() {
         });
 
         console.log("RTP Capabilities", device.rtpCapabilities);
+
+        goCreateTransport();
       } catch (error) {
         console.log(error);
         if (error.name === "UnsupportedError")
@@ -88,12 +104,14 @@ export default function Home() {
     // make a request to the server for Router RTP Capabilities
     // see server's socket.on('getRtpCapabilities', ...)
     // the server sends back data object which contains rtpCapabilities
-    socket.emit("getRtpCapabilities", (data) => {
+    socket.emit("createRoom", (data) => {
       console.log(`Router RTP Capabilities... ${data.rtpCapabilities}`);
 
       // we assign to local variable and will be used when
       // loading the client Device (see createDevice above)
       setRtpCapabilities(data.rtpCapabilities);
+
+      createDevice();
     });
   };
 
@@ -165,6 +183,7 @@ export default function Home() {
         errback(error);
       }
     });
+    connectSendTransport();
   }, [producerTransport]);
 
   const connectSendTransport = async () => {
@@ -237,6 +256,7 @@ export default function Home() {
         }
       }
     );
+    connectRecvTransport();
   }, [consumerTransport]);
 
   const connectRecvTransport = async () => {
@@ -283,13 +303,8 @@ export default function Home() {
 
   return (
     <div>
-      <button onClick={getLocalStream}>Get local video</button>
-      <button onClick={getRtpCapabilities}>Get rtp capabilities</button>
-      <button onClick={createDevice}>Create device</button>
-      <button onClick={createSendTransport}>Create send transport</button>
-      <button onClick={connectSendTransport}>Connect send transport</button>
-      <button onClick={createRecvTransport}>Create receive transport</button>
-      <button onClick={connectRecvTransport}>Connect receive transport</button>
+      <button onClick={getLocalStream}>Publish</button>
+      <button onClick={goConsume}>Consume</button>
       <video ref={localStream} autoPlay controls />{" "}
       <video ref={remoteVideo} autoPlay controls />
     </div>

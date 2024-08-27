@@ -37,7 +37,7 @@ export default function Home() {
   const [producer, setProducer] = useState(null);
   const [consumerTransport, setConsumerTransport] = useState(null);
   const [consumer, setConsumer] = useState(null);
-  const [isProducer, setIsProducer] = useState(false);
+  const isProducer = useRef(false);
 
   useEffect(() => {
     socket.on("connection-success", ({ socketId, existsProducer }) => {
@@ -50,12 +50,12 @@ export default function Home() {
   };
 
   const goConnect = (producerOrConsumer) => {
-    setIsProducer(producerOrConsumer);
+    isProducer.current = producerOrConsumer;
     !device ? getRtpCapabilities() : goCreateTransport();
   };
 
   const goCreateTransport = () => {
-    isProducer ? createSendTransport() : createRecvTransport();
+    isProducer.current ? createSendTransport() : createRecvTransport();
   };
 
   const getLocalStream = async () => {

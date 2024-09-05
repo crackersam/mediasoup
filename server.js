@@ -26,7 +26,9 @@ app.prepare().then(() => {
   let producerTransport;
   let consumerTransport;
   let producer;
+  let audioProducer;
   let consumer;
+  let audioConsumer;
   const mediaCodecs = [
     {
       kind: "audio",
@@ -107,22 +109,39 @@ app.prepare().then(() => {
       "transport-produce",
       async ({ kind, rtpParameters, appData }, callback) => {
         // call produce based on the prameters from the client
-        producer = await producerTransport.produce({
-          kind,
-          rtpParameters,
-        });
+        if (kind === "video") {
+          producer = await producerTransport.produce({
+            kind,
+            rtpParameters,
+          });
 
-        console.log("Producer ID: ", producer.id, producer.kind);
+          console.log("Producer ID: ", producer.id, producer.kind);
 
-        producer.on("transportclose", () => {
-          console.log("transport for this producer closed ");
-          producer.close();
-        });
+          producer.on("transportclose", () => {
+            console.log("transport for this producer closed ");
+            producer.close();
+          });
+          // Send back to the client the Producer's id
+          callback({
+            id: producer.id,
+          });
+        } else {
+          audioProducer = await producerTransport.produce({
+            kind,
+            rtpParameters,
+          });
 
-        // Send back to the client the Producer's id
-        callback({
-          id: producer.id,
-        });
+          console.log("Producer ID: ", audioProducer.id, audioProducer.kind);
+
+          audioProducer.on("transportclose", () => {
+            console.log("transport for this producer closed ");
+            audioProducer.close();
+          });
+          // Send back to the client the Producer's id
+          callback({
+            id: audioProducer.id,
+          });
+        }
       }
     );
 
@@ -164,8 +183,28 @@ app.prepare().then(() => {
             rtpParameters: consumer.rtpParameters,
           };
 
-          // send the parameters to the client
-          callback({ params });
+          audioConsumer = await consumerTransport.consume({
+            producerId: audioProducer.id,
+            rtpCapabilities,
+            paused: true,
+          });
+          audioConsumer.on("transportclose", () => {
+            console.log("consumer transport closed");
+            audioConsumer.close();
+          });
+          audioConsumer.on("producerclose", () => {
+            console.log("producer closed");
+            audioConsumer.close();
+          });
+
+          const audioParams = {
+            id: audioConsumer.id,
+            producerId: audioProducer.id,
+            kind: audioConsumer.kind,
+            rtpParameters: audioConsumer.rtpParameters,
+          };
+
+          callback({ params, audioParams });
         }
       } catch (error) {
         console.log(error.message);
@@ -180,6 +219,7 @@ app.prepare().then(() => {
     socket.on("consumer-resume", async () => {
       console.log("consumer resume");
       await consumer.resume();
+      await audioConsumer.resume();
     });
 
     socket.on("disconnect", () => {

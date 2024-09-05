@@ -31,10 +31,12 @@ export default function Home() {
       videoGoogleStartBitrate: 1000,
     },
   });
+  const [audioParams, setAudioParams] = useState({});
   const [device, setDevice] = useState(null);
   const [rtpCapabilities, setRtpCapabilities] = useState(null);
   const [producerTransport, setProducerTransport] = useState(null);
   const [producer, setProducer] = useState(null);
+  const [audioProducer, setAudioProducer] = useState(null);
   const [consumerTransport, setConsumerTransport] = useState(null);
   const [consumer, setConsumer] = useState(null);
   const isProducer = useRef(false);
@@ -60,7 +62,9 @@ export default function Home() {
         .then((stream) => {
           localStream.current.srcObject = stream;
           const track = stream.getVideoTracks()[0];
+          const audioTrack = stream.getAudioTracks()[0];
           setParams((prev) => ({ ...prev, track }));
+          setAudioParams((prev) => ({ ...prev, track: audioTrack }));
           goConnect(true);
         });
     } catch (error) {
@@ -187,10 +191,11 @@ export default function Home() {
     // https://mediasoup.org/documentation/v3/mediasoup-client/api/#transport-produce
     // this action will trigger the 'connect' and 'produce' events above
     setProducer(await producerTransport.produce(params));
+    setAudioProducer(await producerTransport.produce(audioParams));
   };
 
   useEffect(() => {
-    if (!producer) return;
+    if (!producer || !audioProducer) return;
     producer.on("trackended", () => {
       console.log("track ended");
 
@@ -202,99 +207,18 @@ export default function Home() {
 
       // close video track
     });
-  }, [producer]);
+    audioProducer.on("trackended", () => {
+      console.log("track ended");
 
-  const createRecvTransport = async () => {
-    // see server's socket.on('consume', sender?, ...)
-    // this is a call from Consumer, so sender = false
-    await socket.emit(
-      "createWebRtcTransport",
-      { sender: false },
-      ({ params }) => {
-        // The server sends back params needed
-        // to create Send Transport on the client side
-        if (params.error) {
-          console.log(params.error);
-          return;
-        }
+      // close audio track
+    });
 
-        console.log(params);
+    audioProducer.on("transportclose", () => {
+      console.log("transport ended");
 
-        // creates a new WebRTC Transport to receive media
-        // based on server's consumer transport params
-        // https://mediasoup.org/documentation/v3/mediasoup-client/api/#device-createRecvTransport
-        setConsumerTransport(device.createRecvTransport(params));
-      }
-    );
-  };
-
-  useEffect(() => {
-    if (!consumerTransport) return;
-    // https://mediasoup.org/documentation/v3/communication-between-client-and-server/#producing-media
-    // this event is raised when a first call to transport.produce() is made
-    // see connectRecvTransport() below
-    consumerTransport.on(
-      "connect",
-      async ({ dtlsParameters }, callback, errback) => {
-        try {
-          // Signal local DTLS parameters to the server side transport
-          // see server's socket.on('transport-recv-connect', ...)
-          await socket.emit("transport-recv-connect", {
-            dtlsParameters,
-          });
-
-          // Tell the transport that parameters were transmitted.
-          callback();
-        } catch (error) {
-          // Tell the transport that something was wrong
-          errback(error);
-        }
-      }
-    );
-    connectRecvTransport();
-  }, [consumerTransport]);
-
-  const connectRecvTransport = async () => {
-    // for consumer, we need to tell the server first
-    // to create a consumer based on the rtpCapabilities and consume
-    // if the router can consume, it will send back a set of params as below
-    await socket.emit(
-      "consume",
-      {
-        rtpCapabilities: device.rtpCapabilities,
-      },
-      async ({ params }) => {
-        if (params.error) {
-          console.log("Cannot Consume");
-          return;
-        }
-
-        console.log(params);
-        // then consume with the local consumer transport
-        // which creates a consumer
-        setConsumer(
-          await consumerTransport.consume({
-            id: params.id,
-            producerId: params.producerId,
-            kind: params.kind,
-            rtpParameters: params.rtpParameters,
-          })
-        );
-      }
-    );
-  };
-
-  useEffect(() => {
-    if (!consumer) return;
-    // destructure and retrieve the video track from the producer
-    const { track } = consumer;
-
-    remoteVideo.current.srcObject = new MediaStream([track]);
-
-    // the server consumer started with media paused
-    // so we need to inform the server to resume
-    socket.emit("consumer-resume");
-  }, [consumer]);
+      // close audio track
+    });
+  }, [producer, audioProducer]);
 
   return (
     <div>

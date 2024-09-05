@@ -7,6 +7,7 @@ import * as mediasoupClient from "mediasoup-client";
 export default function Home() {
   const localStream = useRef();
   const remoteVideo = useRef();
+  const remoteAudio = useRef();
   const [params, setParams] = useState({
     // mediasoup params
     encodings: [
@@ -35,6 +36,7 @@ export default function Home() {
   const [rtpCapabilities, setRtpCapabilities] = useState(null);
   const [consumerTransport, setConsumerTransport] = useState(null);
   const [consumer, setConsumer] = useState(null);
+  const [audioConsumer, setAudioConsumer] = useState(null);
   const runOnce = useRef(false);
 
   useEffect(() => {
@@ -152,13 +154,13 @@ export default function Home() {
       {
         rtpCapabilities: device.rtpCapabilities,
       },
-      async ({ params }) => {
+      async ({ params, audioParams }) => {
         if (params.error) {
           console.log("Cannot Consume");
           return;
         }
 
-        console.log(params);
+        console.log(params, audioParams);
         // then consume with the local consumer transport
         // which creates a consumer
         setConsumer(
@@ -169,25 +171,36 @@ export default function Home() {
             rtpParameters: params.rtpParameters,
           })
         );
+        setAudioConsumer(
+          await consumerTransport.consume({
+            id: audioParams.id,
+            producerId: audioParams.producerId,
+            kind: audioParams.kind,
+            rtpParameters: audioParams.rtpParameters,
+          })
+        );
       }
     );
   };
 
   useEffect(() => {
-    if (!consumer) return;
+    if (!consumer || !audioConsumer) return;
     // destructure and retrieve the video track from the producer
     const { track } = consumer;
+    const { track: audioTrack } = audioConsumer;
 
     remoteVideo.current.srcObject = new MediaStream([track]);
+    remoteAudio.current.srcObject = new MediaStream([audioTrack]);
 
     // the server consumer started with media paused
     // so we need to inform the server to resume
     socket.emit("consumer-resume");
-  }, [consumer]);
+  }, [consumer, audioConsumer]);
 
   return (
     <div>
-      <video ref={remoteVideo} autoPlay controls />
+      <video ref={remoteVideo} autoPlay />
+      <audio ref={remoteAudio} autoPlay />
     </div>
   );
 }

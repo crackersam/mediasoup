@@ -6,7 +6,6 @@ import * as mediasoupClient from "mediasoup-client";
 
 export default function Home() {
   const remoteVideo = useRef();
-  const remoteAudio = useRef();
   const [params, setParams] = useState({
     // mediasoup params
     encodings: [
@@ -184,8 +183,7 @@ export default function Home() {
     const { track } = consumer;
     const { track: audioTrack } = audioConsumer;
 
-    remoteVideo.current.srcObject = new MediaStream([track]);
-    remoteAudio.current.srcObject = new MediaStream([audioTrack]);
+    remoteVideo.current.srcObject = new MediaStream([track, audioTrack]);
 
     // the server consumer started with media paused
     // so we need to inform the server to resume
@@ -194,8 +192,7 @@ export default function Home() {
 
   return (
     <div>
-      <video ref={remoteVideo} autoPlay />
-      <audio ref={remoteAudio} autoPlay />
+      <video ref={remoteVideo} controls />
     </div>
   );
 }

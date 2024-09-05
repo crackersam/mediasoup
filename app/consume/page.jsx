@@ -192,7 +192,7 @@ export default function Home() {
 
   return (
     <div>
-      <video ref={remoteVideo} controls />
+      <video ref={remoteVideo} autoPlay controls />
     </div>
   );
 }

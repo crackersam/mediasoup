@@ -5,7 +5,6 @@ import { socket } from "@/socket";
 import * as mediasoupClient from "mediasoup-client";
 
 export default function Home() {
-  const localStream = useRef();
   const remoteVideo = useRef();
   const remoteAudio = useRef();
   const [params, setParams] = useState({
@@ -44,13 +43,9 @@ export default function Home() {
     socket.on("connection-success", ({ socketId, existsProducer }) => {
       console.log(`socket id: ${socketId} connected... ${existsProducer}`);
     });
-    goConsume();
+    getRtpCapabilities();
     runOnce.current = true;
   }, []);
-
-  const goConsume = () => {
-    !device ? getRtpCapabilities() : createRecvTransport();
-  };
 
   const createDevice = async () => {
     setDevice(new mediasoupClient.Device());
@@ -67,7 +62,7 @@ export default function Home() {
 
         console.log("RTP Capabilities", device.rtpCapabilities);
 
-        goConsume();
+        createRecvTransport();
       } catch (error) {
         console.log(error);
         if (error.name === "UnsupportedError")

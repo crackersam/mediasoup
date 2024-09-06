@@ -72,6 +72,10 @@ app.prepare().then(() => {
       existsProducer: producer ? true : false,
     });
 
+    socket.on("message", ({ message, username }) => {
+      io.emit("message", `${username}: ${message}`);
+    });
+
     socket.on("createRoom", async (callback) => {
       if (router === undefined) {
         // worker.createRouter(options)
